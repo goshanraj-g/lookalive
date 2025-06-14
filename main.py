@@ -49,7 +49,15 @@ while True:
             # since we need to convert the relative box to pixel values, we have to convert the precent of the image from the bounding box to real pixel coordinates
             cv2.rectangle(frame, (x, y), (x + width, y + height), (0, 0, 0), 2)
             # draw a box around the frame
-            cv2.putText(frame, "face detected", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            cv2.putText(
+                frame,
+                "face detected",
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (0, 255, 0),
+                2,
+            )
 
     cv2.imshow(
         "Webcam Feed -- press 'q' to quit", frame
