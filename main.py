@@ -1,5 +1,13 @@
 import cv2  # import open cv
 import mediapipe as mp  # face detection
+import time
+from plyer import notification
+
+BREAK_INTERVAL = 20 * 60
+
+# track when face was last continuously seen
+start_time = None
+notified = False
 
 # setup face detection model from MediaPipe
 mp_face = mp.solutions.face_detection
@@ -58,6 +66,29 @@ while True:
                 (0, 255, 0),
                 2,
             )
+        if start_time is None:
+            start_time = time.time()
+        else:
+            elapsed = time.time() - start_time
+            if elapsed > BREAK_INTERVAL and not notified:
+                notification.notify(
+                    title="Time for a break!",
+                    message="You've been watching the screen for too long!",
+                    timeout=5,
+                )
+                notified = True
+    else:
+        start_time = None
+        notificed = False
+        cv2.putText(
+            frame,
+            "no face detected",
+            (20, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 0, 255),
+            2,
+        )
 
     cv2.imshow(
         "Webcam Feed -- press 'q' to quit", frame
