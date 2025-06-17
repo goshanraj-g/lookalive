@@ -1,103 +1,82 @@
-import cv2  # import open cv
-import mediapipe as mp  # face detection
+import cv2
+import mediapipe as mp
 import time
 from plyer import notification
 
-BREAK_INTERVAL = 5
+# Mediapipe -> Library handling hard ML work
+# OpenCV -> Handles raw pixels & windows
+# Plyer -> Talks to OS
 
-# track when face was last continuously seen
-start_time = None
-notified = False
+SCREEN_TIME_LIMIT = 20 * 60  # 20 minutes -> 1200 seconds
+BREAK_DURATION = 20  # 20 seconds
 
-# setup face detection model from MediaPipe
-mp_face = mp.solutions.face_detection
-# face detector object, good for faces within 2m, and will only count detection if it's 75% confident
-face_detection = mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.75)
+mp_face_mesh = (
+    mp.solutions.face_mesh  # 468-point face mesh model
+)  # Face Mesh vs Face Detection: Detection detects if a face is existent, mesh detects key points on the face
+face_mesh = mp_face_mesh.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True,  # Unlocks iris points (without this flag, it would make pupil centers inaccurate)
+    min_detection_confidence=0.75,
+    min_tracking_confidence=0.75,
+)
 
-
-# open default webcam (0)
-def get_camera():
-    return cv2.VideoCapture(0, cv2.CAP_DSHOW)
-
-
-print("trying to find webcam")
-cap = get_camera()
-
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Capture on main camera
 if not cap.isOpened():
-    print("could not open webcam")
-    exit()
+    raise RuntimeError("Cannot open webcam")
 
-print("webcam opened successfully")
+start_screen_watch_time = None
+break_in_progress = False
+break_start_time = None
 
-# start loop to read frames from camera
-while True:
-    ret, frame = (
-        cap.read()
-    )  # ret -> boolean if frame is read correctly, and frame is the image captures as an NumPy array
-    if not ret:
-        print("failed to grab frame")
-        break  # if the frame isn't captured
-    rgb_frame = cv2.cvtColor(
-        frame, cv2.COLOR_BGR2RGB
-    )  # convert to RGB since opencv uses BGR, and media pipe needs RGB
-    results = face_detection.process(
-        rgb_frame
-    )  # face detection model on the current frame
+# Left iris center: index 474
+# Right iris center: index 469
 
-    if results.detections:  # if a face is detected
-        for detection in results.detections:  # go through face
-            bboxC = (
-                detection.location_data.relative_bounding_box
-            )  # get the bounding box of the face
-            h, w, _ = frame.shape  # get the height, width of image
-            x = int(bboxC.xmin * w)
-            y = int(bboxC.ymin * h)
-            width = int(bboxC.width * w)
-            height = int(bboxC.height * h)
-            # since we need to convert the relative box to pixel values, we have to convert the precent of the image from the bounding box to real pixel coordinates
-            cv2.rectangle(frame, (x, y), (x + width, y + height), (0, 0, 0), 2)
-            # draw a box around the frame
-            cv2.putText(
-                frame,
-                "face detected",
-                (x, y - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
-                (0, 255, 0),
-                2,
-            )
-        if start_time is None:
-            start_time = time.time()
-        else:
-            elapsed = time.time() - start_time
-            if elapsed > BREAK_INTERVAL and not notified:
-                notification.notify(
-                    title="Time for a break!",
-                    message="You've been watching the screen for too long!",
-                    timeout=5,
-                )
-                notified = True
+
+def get_gaze_direction(landmarks, frame_shape):
+    h, w = frame_shape[:2]  # Gets height and width of video frame
+    x_left = int(
+        landmarks[474].x * w
+    )  # Access x-coordinates of left and right iris centers and multiply by w to convert to pixelized positions from normalized values [0.0, 1.0]
+    x_right = int(landmarks[469].x * w)
+    eye_center_x = (
+        x_left + x_right
+    ) // 2  # Take average of both iris centers to gauge the overal gaze center
+
+    if eye_center_x < w * 0.4:  # Return 'left' if center is on the left side of width
+        return "left"
+    if eye_center_x > w * 0.6:  # Return 'right' if center is on the right side of width
+        return "right"
     else:
-        start_time = None
-        notificed = False
-        cv2.putText(
-            frame,
-            "no face detected",
-            (20, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 0, 255),
-            2,
-        )
+        return "center"  # Assume user is looking at the center
 
-    cv2.imshow(
-        "Webcam Feed -- press 'q' to quit", frame
-    )  # show the captured frame in a window called "Webcam"
 
-    # wait 1ms and check if q is pressed
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        print("exitting")
+while True:
+    ret, frame = cap.read()
+    if not ret:  # If frame wasn't read, disconnect
         break
 
-cap.release()
-cv2.destroyAllWindows()
+    rgb = cv2.cvtColor(
+        frame, cv2.COLOR_BGR2RGB
+    )  # Convert from BGR to RGB since MediaPipe expects RGB
+    results = face_mesh.process(rgb)  # MediaPipe to process the rgb frame
+    now = time.time()  # Snapshot of the current frame's time
+
+    if results.multi_face_landmarks:
+        landmarks = results.multi_face_landmarks[
+            0
+        ].landmark  # Access the landmarks of the detected result (.x, .y, .z)
+        gaze = get_gaze_direction(landmarks, frame.shape)
+
+        if gaze == "center" and not break_in_progress:
+            if start_screen_watch_time is None:
+                start_screen_watch_time = now
+            elif now - start_screen_watch_time >= SCREEN_TIME_LIMIT:
+                notification.notify(
+                    title="20-20-20 Rule",
+                    message="Look 20 feet away for 20 seconds",
+                    timeout=5,
+                )
+                break_in_progress = True
+                break_start_time = now
+        else:
+            start_screen-watch_time = None
