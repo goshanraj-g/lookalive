@@ -79,4 +79,43 @@ while True:
                 break_in_progress = True
                 break_start_time = now
         else:
-            start_screen-watch_time = None
+            start_screen_watch_time = None
+
+        status_txt = "BREAK" if break_in_progress else f"Gaze: {gaze}"
+        cv2.putText(
+            frame,
+            status_txt,
+            (30, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0) if gaze == "center" else (0, 255, 255),
+            2,
+        )
+    else:
+        start_screen_watch_time = None
+        gaze = "none"
+        cv2.putText(
+            frame, "No Face", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2
+        )
+
+    if break_in_progress:
+        elapsed = now - break_start_time
+        cv2.putText(
+            frame,
+            f"Break: {int(BREAK_DURATION - elapsed)}s",
+            (30, 70),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 0),
+            2,
+        )
+
+        if elapsed >= BREAK_DURATION:
+            break_in_progress = False
+            start_screen_watch_time = None
+            notification.notify(
+                title="Break Over", message="You can return to the screen", timeout=5
+            )
+    cv2.imshow("20-20-20 Eye Tracker --- q to quit", frame)
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
