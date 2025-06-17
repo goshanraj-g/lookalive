@@ -3,7 +3,7 @@ import mediapipe as mp  # face detection
 import time
 from plyer import notification
 
-BREAK_INTERVAL = 20 * 60
+BREAK_INTERVAL = 5
 
 # track when face was last continuously seen
 start_time = None
