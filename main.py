@@ -73,7 +73,7 @@ while True:
             elif now - start_screen_watch_time >= SCREEN_TIME_LIMIT:
                 notification.notify(
                     title="20-20-20 Rule",
-                    message="Look 20 feet away for 20 seconds",
+                    message="Look 20 feet away for 20 seconds!",
                     timeout=5,
                 )
                 break_in_progress = True
