@@ -30,10 +30,11 @@ break_start_time = None
 
 # Left iris center: index 474
 # Right iris center: index 469
-
+####
+    
 
 def get_gaze_direction(landmarks, frame_shape):
-    h, w = frame_shape[:2]  # Gets height and width of video frame
+    w = frame_shape[1:2]  # Gets height and width of video frame
     x_left = int(
         landmarks[474].x * w
     )  # Access x-coordinates of left and right iris centers and multiply by w to convert to pixelized positions from normalized values [0.0, 1.0]
