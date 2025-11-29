@@ -4,3 +4,6 @@
 
 
 *.json
+
+/build
+/dist
