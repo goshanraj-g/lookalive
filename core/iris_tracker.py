@@ -38,17 +38,23 @@ class IrisGazeTracker:
         self.blink_start_time = time.time()
         self.last_blink_time = 0
         
+        # distance detection
+        self.baseline_face_width = None  # will be set after a few frames
+        self.face_width_samples = []
+        self.TOO_CLOSE_THRESHOLD = 1.3  # 30% larger than baseline means that its  too close
+        
     def get_iris_position(self, landmarks, frame_shape) -> Optional[Tuple[float, float, float, float]]:
         """
-        Get precise iris positions for both eyes.
-        Returns: (left_iris_x, left_iris_y, right_iris_x, right_iris_y) or None
+        get precise iris positions for both eyes
+        returns: (left_iris_x, left_iris_y, right_iris_x, right_iris_y) or None
+        ####### COOL, CHECK IF THERES MORE LANDMARKS
         """
         if not landmarks:
             return None
             
         h, w = frame_shape[:2]
         
-        # Get iris centers
+        # get iris centers
         left_iris = landmarks[self.LEFT_IRIS_CENTER]
         right_iris = landmarks[self.RIGHT_IRIS_CENTER]
         
@@ -61,7 +67,7 @@ class IrisGazeTracker:
     
     def calculate_gaze_direction(self, landmarks, frame_shape) -> str:
         """
-        Calculate gaze direction using simplified iris tracking.
+        cakc  gaze direction using iris tracking
         """
         iris_pos = self.get_iris_position(landmarks, frame_shape)
         if not iris_pos:
@@ -70,26 +76,26 @@ class IrisGazeTracker:
         left_iris_x, left_iris_y, right_iris_x, right_iris_y = iris_pos
         h, w = frame_shape[:2]
         
-        # Get eye corner landmarks for reference
+        # get eye corner landmarks for reference
         left_inner = landmarks[self.LEFT_EYE_CORNERS[0]]
         left_outer = landmarks[self.LEFT_EYE_CORNERS[1]]
         right_inner = landmarks[self.RIGHT_EYE_CORNERS[0]]
         right_outer = landmarks[self.RIGHT_EYE_CORNERS[1]]
         
-        # Calculate eye widths in pixels
+        # calc eye widths in pixels
         left_eye_width = abs((left_outer.x - left_inner.x) * w)
         right_eye_width = abs((right_outer.x - right_inner.x) * w)
         
         if left_eye_width > 0 and right_eye_width > 0:
-            # Calculate relative iris position within each eye (0 = inner, 1 = outer)
+            # calc relative iris position within each eye (0 = inner, 1 = outer)
             left_relative = (left_iris_x - left_inner.x * w) / left_eye_width
             right_relative = (right_iris_x - right_inner.x * w) / right_eye_width
             
-            # Average both eyes for final position
+            # avg both eyes for final position
             avg_relative = (left_relative + right_relative) / 2
             
-            # Simple threshold-based detection
-            threshold = 0.15  # Sensitivity threshold
+            # threshold-based detection
+            threshold = 0.15  # sens threshold
             
             if avg_relative < (0.5 - threshold):
                 return "left"
@@ -98,31 +104,31 @@ class IrisGazeTracker:
             else:
                 return "center"
         
-        return "center"  # Default safe fallback
+        return "center"  # default safe fallback
     
     def detect_blink(self, landmarks, frame_shape) -> bool:
         """
-        Detect if user is blinking using eye aspect ratio.
+        detect if user is blinking using eye aspect ratio
         """
         if not landmarks:
             return False
             
         h, w = frame_shape[:2]
         
-        # Calculate eye aspect ratio for both eyes
+        # calculate eye aspect ratio for both eyes
         left_top = landmarks[self.LEFT_EYE_TOP_BOTTOM[0]]
         left_bottom = landmarks[self.LEFT_EYE_TOP_BOTTOM[1]]
         right_top = landmarks[self.RIGHT_EYE_TOP_BOTTOM[0]]
         right_bottom = landmarks[self.RIGHT_EYE_TOP_BOTTOM[1]]
         
-        # Vertical distances
+        # vertical distances
         left_height = abs((left_top.y - left_bottom.y) * h)
         right_height = abs((right_top.y - right_bottom.y) * h)
         
-        # Average eye height
+        # average eye height
         avg_height = (left_height + right_height) / 2
         
-        # Blink threshold (adjust based on testing)
+        # blink threshold (adjust based on testing)
         blink_threshold = 8.0  # pixels
         
         is_blinking = avg_height < blink_threshold
@@ -135,8 +141,8 @@ class IrisGazeTracker:
     
     def get_blink_rate(self) -> float:
         """
-        Calculate blinks per minute.
-        Normal rate is 15-20 blinks/minute.
+        calculate blinks per minute
+        normal rate is 15-20 blinks/minute
         """
         elapsed_minutes = (time.time() - self.blink_start_time) / 60.0
         if elapsed_minutes > 0:
@@ -145,8 +151,8 @@ class IrisGazeTracker:
     
     def get_iris_diameter(self, landmarks, frame_shape) -> Optional[float]:
         """
-        Estimate iris diameter for pupil dilation detection.
-        Can indicate eye strain or fatigue.
+        estimate iris diameter for pupil dilation detection
+        can indicate eye strain or fatigue
         """
         iris_pos = self.get_iris_position(landmarks, frame_shape)
         if not iris_pos:
@@ -156,24 +162,25 @@ class IrisGazeTracker:
         # In reality, you'd need additional iris boundary landmarks
         h, w = frame_shape[:2]
         
-        # Rough estimation based on eye size
+        # rough estimation based on eye size
         left_inner = landmarks[self.LEFT_EYE_CORNERS[0]]
         left_outer = landmarks[self.LEFT_EYE_CORNERS[1]]
         eye_width = abs((left_outer.x - left_inner.x) * w)
         
-        # Iris is typically ~25% of eye width
+        # iris is typically ~25% of eye width
         estimated_iris_diameter = eye_width * 0.25
         return estimated_iris_diameter
     
     def get_gaze_analysis(self, landmarks, frame_shape) -> dict:
         """
-        Comprehensive gaze analysis including all metrics.
+        Comprehensive gaze analysis including all metrics
         """
         gaze_direction = self.calculate_gaze_direction(landmarks, frame_shape)
         is_blinking = self.detect_blink(landmarks, frame_shape)
         blink_rate = self.get_blink_rate()
         iris_diameter = self.get_iris_diameter(landmarks, frame_shape)
         iris_pos = self.get_iris_position(landmarks, frame_shape)
+        too_close = self.is_too_close(landmarks, frame_shape)
         
         return {
             'gaze_direction': gaze_direction,
@@ -181,13 +188,48 @@ class IrisGazeTracker:
             'blink_rate': blink_rate,
             'iris_diameter': iris_diameter,
             'iris_positions': iris_pos,
+            'too_close': too_close,
             'timestamp': time.time()
         }
     
+    def is_too_close(self, landmarks, frame_shape) -> bool:
+        """
+        Detect if user is too close to screen based on face size
+        Uses face width relative to a calibrated baseline
+        """
+        if not landmarks:
+            return False
+        
+        h, w = frame_shape[:2]
+        
+        # Get face width using outer eye corners (more stable than face edges)
+        left_outer = landmarks[33]   # Left eye outer corner
+        right_outer = landmarks[263] # Right eye outer corner
+        
+        face_width = abs(right_outer.x - left_outer.x) * w
+        
+        # Calibrate baseline from first few frames
+        if len(self.face_width_samples) < 30:  # ~1 second of samples
+            self.face_width_samples.append(face_width)
+            if len(self.face_width_samples) == 30:
+                # Use median to avoid outliers
+                self.baseline_face_width = sorted(self.face_width_samples)[15]
+            return False
+        
+        if self.baseline_face_width is None:
+            return False
+        
+        # Check if face is significantly larger than baseline
+        ratio = face_width / self.baseline_face_width
+        return ratio > self.TOO_CLOSE_THRESHOLD
+    
+    def reset_distance_calibration(self):
+        """Reset the distance baseline (if user changes position)"""
+        self.baseline_face_width = None
+        self.face_width_samples = []
+    
     def draw_debug_overlay(self, frame, landmarks, analysis: dict):
-        """
-        Draw debug information on the frame.
-        """
+
         if not landmarks:
             return frame
             
@@ -198,11 +240,6 @@ class IrisGazeTracker:
             left_x, left_y, right_x, right_y = analysis['iris_positions']
             cv2.circle(frame, (int(left_x), int(left_y)), 3, (0, 255, 0), -1)
             cv2.circle(frame, (int(right_x), int(right_y)), 3, (0, 255, 0), -1)
-        
-        # Draw gaze direction
-        gaze = analysis['gaze_direction']
-        color = (0, 255, 0) if gaze == "center" else (0, 255, 255)
-        cv2.putText(frame, f"Gaze: {gaze}", (30, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         
         # Draw blink rate
         blink_rate = analysis['blink_rate']
@@ -217,15 +254,12 @@ class IrisGazeTracker:
         return frame
     
     def reset_blink_counter(self):
-        """Reset blink tracking (useful for new sessions)."""
+        """reset blink tracking"""
         self.blink_counter = 0
         self.blink_start_time = time.time()
 
 
 def get_gaze_direction(landmarks, frame_shape):
-    """
-    Compatibility function for existing code.
-    """
-    # Create a temporary tracker for compatibility
+
     tracker = IrisGazeTracker()
     return tracker.calculate_gaze_direction(landmarks, frame_shape)
