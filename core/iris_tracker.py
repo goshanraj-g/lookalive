@@ -38,15 +38,6 @@ class IrisGazeTracker:
         self.blink_start_time = time.time()
         self.last_blink_time = 0
         
-        # callibration vars (DISABLED - using improved relative method instead)
-        self.is_calibrated = False  # Always False - calibration disabled
-        self.screen_bounds = None  
-        self.calibration_points = []  
-        self.calibration_file = "screen_calibration.json"
-        
-        # Don't load calibration - improved method doesn't need it
-        # self.load_calibration()
-        
     def get_iris_position(self, landmarks, frame_shape) -> Optional[Tuple[float, float, float, float]]:
         """
         Get precise iris positions for both eyes.
@@ -70,7 +61,7 @@ class IrisGazeTracker:
     
     def calculate_gaze_direction(self, landmarks, frame_shape) -> str:
         """
-        Improved gaze direction using multiple methods for better accuracy.
+        Calculate gaze direction using simplified iris tracking.
         """
         iris_pos = self.get_iris_position(landmarks, frame_shape)
         if not iris_pos:
@@ -79,40 +70,27 @@ class IrisGazeTracker:
         left_iris_x, left_iris_y, right_iris_x, right_iris_y = iris_pos
         h, w = frame_shape[:2]
         
-        # 🎯 METHOD 1: Eye-relative positioning (most reliable)
+        # Get eye corner landmarks for reference
         left_inner = landmarks[self.LEFT_EYE_CORNERS[0]]
         left_outer = landmarks[self.LEFT_EYE_CORNERS[1]]
         right_inner = landmarks[self.RIGHT_EYE_CORNERS[0]]
         right_outer = landmarks[self.RIGHT_EYE_CORNERS[1]]
         
-        # Calculate relative iris position within each eye socket
+        # Calculate eye widths in pixels
         left_eye_width = abs((left_outer.x - left_inner.x) * w)
         right_eye_width = abs((right_outer.x - right_inner.x) * w)
         
         if left_eye_width > 0 and right_eye_width > 0:
-            # Relative position (0 = inner corner, 1 = outer corner)
+            # Calculate relative iris position within each eye (0 = inner, 1 = outer)
             left_relative = (left_iris_x - left_inner.x * w) / left_eye_width
             right_relative = (right_iris_x - right_inner.x * w) / right_eye_width
             
-            # Average both eyes for stability
+            # Average both eyes for final position
             avg_relative = (left_relative + right_relative) / 2
             
-            # 🎯 METHOD 2: Absolute iris position (secondary check)
-            avg_iris_x = (left_iris_x + right_iris_x) / 2
-            frame_center = w / 2
-            distance_from_center = abs(avg_iris_x - frame_center) / (w / 2)
+            # Simple threshold-based detection
+            threshold = 0.15  # Sensitivity threshold
             
-            # 🎯 METHOD 3: Combined decision with dynamic thresholds
-            # Adjust thresholds based on how far iris is from eye center
-            base_threshold = 0.25  # More sensitive than before
-            
-            # If looking very far to sides, be more confident
-            if distance_from_center > 0.3:
-                threshold = base_threshold - 0.05  # Easier to trigger left/right
-            else:
-                threshold = base_threshold + 0.05  # Prefer center for small movements
-            
-            # Final decision with improved logic
             if avg_relative < (0.5 - threshold):
                 return "left"
             elif avg_relative > (0.5 + threshold):
@@ -242,122 +220,6 @@ class IrisGazeTracker:
         """Reset blink tracking (useful for new sessions)."""
         self.blink_counter = 0
         self.blink_start_time = time.time()
-    
-    # 🎯 SCREEN CALIBRATION METHODS
-    def start_screen_calibration(self):
-        """Start the screen calibration process."""
-        print("\n🎯 SCREEN CALIBRATION")
-        print("=" * 40)
-        print("We'll calibrate your screen boundaries so the app knows")
-        print("when you're looking at your monitor vs. looking away.")
-        print("\nYou'll look at 5 positions:")
-        print("1. Left edge of screen")
-        print("2. Right edge of screen") 
-        print("3. Top edge of screen")
-        print("4. Bottom edge of screen")
-        print("5. Center of screen")
-        
-        self.calibration_points = []
-        return True
-    
-    def collect_calibration_sample(self, landmarks, frame_shape, position_name: str):
-        """Collect iris position for a specific screen position."""
-        iris_pos = self.get_iris_position(landmarks, frame_shape)
-        if iris_pos:
-            left_x, left_y, right_x, right_y = iris_pos
-            # Average both eyes for more stable calibration
-            avg_x = (left_x + right_x) / 2
-            avg_y = (left_y + right_y) / 2
-            
-            sample = {
-                'position': position_name,
-                'iris_x': avg_x,
-                'iris_y': avg_y,
-                'timestamp': time.time()
-            }
-            self.calibration_points.append(sample)
-            print(f"✅ Collected sample for {position_name}: iris at ({avg_x:.1f}, {avg_y:.1f})")
-            return True
-        return False
-    
-    def finalize_calibration(self):
-        """Process calibration data and create screen boundaries."""
-        if len(self.calibration_points) < 5:
-            print("❌ Need at least 5 calibration points")
-            return False
-        
-        # Extract positions
-        positions = {point['position']: (point['iris_x'], point['iris_y']) 
-                    for point in self.calibration_points}
-        
-        if not all(pos in positions for pos in ['left', 'right', 'top', 'bottom', 'center']):
-            print("❌ Missing required calibration positions")
-            return False
-        
-        # Calculate screen boundaries from calibration points
-        left_x = positions['left'][0]
-        right_x = positions['right'][0]
-        top_y = positions['top'][1]
-        bottom_y = positions['bottom'][1]
-        center_x, center_y = positions['center']
-        
-        # Add margins for better detection (10% of range)
-        x_margin = (right_x - left_x) * 0.1
-        y_margin = (bottom_y - top_y) * 0.1
-        
-        self.screen_bounds = {
-            'left': left_x - x_margin,
-            'right': right_x + x_margin,
-            'top': top_y - y_margin,
-            'bottom': bottom_y + y_margin,
-            'center_x': center_x,
-            'center_y': center_y
-        }
-        
-        self.is_calibrated = True
-        self.save_calibration()
-        
-        print("🎉 Screen calibration completed!")
-        print(f"Screen bounds: X({self.screen_bounds['left']:.1f} to {self.screen_bounds['right']:.1f})")
-        print(f"              Y({self.screen_bounds['top']:.1f} to {self.screen_bounds['bottom']:.1f})")
-        
-        return True
-    
-    def save_calibration(self):
-        """Save calibration to file."""
-        import json
-        try:
-            data = {
-                'screen_bounds': self.screen_bounds,
-                'calibration_points': self.calibration_points,
-                'is_calibrated': self.is_calibrated,
-                'timestamp': time.time()
-            }
-            with open(self.calibration_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"💾 Calibration saved to {self.calibration_file}")
-        except Exception as e:
-            print(f"❌ Error saving calibration: {e}")
-    
-    def load_calibration(self):
-        """Load calibration from file."""
-        import json
-        try:
-            with open(self.calibration_file, 'r') as f:
-                data = json.load(f)
-            
-            self.screen_bounds = data.get('screen_bounds')
-            self.calibration_points = data.get('calibration_points', [])
-            self.is_calibrated = data.get('is_calibrated', False)
-            
-            if self.is_calibrated:
-                print(f"📄 Loaded screen calibration from {self.calibration_file}")
-                print(f"Screen bounds: X({self.screen_bounds['left']:.1f} to {self.screen_bounds['right']:.1f})")
-        except FileNotFoundError:
-            print("No existing screen calibration found")
-        except Exception as e:
-            print(f"Error loading calibration: {e}")
-            self.is_calibrated = False
 
 
 def get_gaze_direction(landmarks, frame_shape):

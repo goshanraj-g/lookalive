@@ -31,12 +31,6 @@ break_manager = BreakManager(SCREEN_TIME_LIMIT, BREAK_DURATION)
 # iris tracker setup
 iris_tracker = IrisGazeTracker()
 
-# check callibration
-if not iris_tracker.is_calibrated:
-    print("\n" + "-" * 50)
-    print("Screen not calibrated")
-    print("Please calibrate your screen for best accuracy")
-    
 print("Starting application")
 
 # settings
@@ -46,9 +40,6 @@ last_health_warning = 0
 # create window
 cv2.namedWindow("LookAlive - Eye Strain Manager", cv2.WINDOW_NORMAL)
 
-# cv2.setWindowProperty( -- full screen
-#     "Enhanced 20-20-20 Eye Tracker", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN
-# )
 
 while True:
     # cap.read() -> (ret: boolean, frame: [NumPy image array])
@@ -76,7 +67,7 @@ while True:
             status_txt = "break... look away 20ft away for 20sec"
             color = (0, 165, 255) 
         else:
-            status_txt = f"Gaze: {gaze.upper()}"
+            status_txt = f"Gaze: {gaze}"
             color = (0, 255, 0) if gaze == "center" else (0, 255, 255)
 
         cv2.putText(
@@ -138,31 +129,7 @@ while True:
                 1,
             )
 
-            # if analysis["iris_diameter"]:
-            #     cv2.putText(
-            #         frame,
-            #         f"Iris: {analysis['iris_diameter']:.1f}px",
-            #         (frame.shape[1] - 300, 60),
-            #         cv2.FONT_HERSHEY_SIMPLEX,
-            #         0.6,
-            #         (255, 255, 255),
-            #         1,
-            #     )
 
-            # Calibration status
-            cal_status = (
-                "CALIBRATED" if iris_tracker.is_calibrated else "NOT CALIBRATED"
-            )
-            cal_color = (0, 255, 0) if iris_tracker.is_calibrated else (0, 165, 255)
-            cv2.putText(
-                frame,
-                f"Screen: {cal_status}",
-                (frame.shape[1] - 300, 90),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                cal_color,
-                1,
-            )
 
     else:
         break_manager.reset()
@@ -176,17 +143,6 @@ while True:
             3,
         )
 
-    # # Calibration reminder for non-calibrated users
-    # if not iris_tracker.is_calibrated:
-    #     cv2.putText(
-    #         frame,
-    #         "⚠️ Run 'python calibrate_screen.py' for better accuracy",
-    #         (10, frame.shape[0] - 60),
-    #         cv2.FONT_HERSHEY_SIMPLEX,
-    #         0.5,
-    #         (0, 165, 255),
-    #         1,
-    #     )
 
     # Controls info
     cv2.putText(
@@ -199,6 +155,8 @@ while True:
         1,
     )
 
+    # Display the video feed with all overlays
+    cv2.imshow("LookAlive - Eye Strain Manager", frame)
 
     # Handle keys
     key = cv2.waitKey(1) & 0xFF
