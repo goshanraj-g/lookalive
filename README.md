@@ -1,6 +1,6 @@
 # LookAlive 👀
 
-LookAlive monitors your gaze through a webcam feed so you can manage screen time without having to watch a clock. It issues distance warnings when your face gets too close, keeps a compact overlay for quick diagnostics, creates session heatmaps, and minimizes to the tray with notifications.
+LookAlive monitors your gaze through a webcam feed so you can manage screen time without having to watch a clock. It issues distance warnings when your face gets too close, keeps a compact overlay for quick diagnostics, creates session heatmaps, and minimizes to the tray with notifications
 
 ## Features
 - real-time iris and gaze tracking using MediaPipe Face Mesh
@@ -11,7 +11,7 @@ LookAlive monitors your gaze through a webcam feed so you can manage screen time
 
 ## Requirements
 - Windows 10 or later
-- Python 3.11 or newer (virtual environment recommended)
+- Python 3.11 (virtual environment recommended)
 - Webcam access granted to the Python process
 
 ## Setup (source)
@@ -39,10 +39,11 @@ Run `dist\LookAlive.exe` after the build to verify functionality.
 PyInstaller writes the packaged binary and supporting files into `dist`. Ship the entire `dist` contents or point your installer (see `installer.iss`) to that folder. Running `dist\LookAlive.exe` installs or launches LookAlive depending on your deployment flow.
 
 ## Demo (placeholder)
-Add a short description or link to a demo recording here once available. Mention whether the demo shows the overlay, system tray interaction, or heatmap visualization so reviewers know what to expect.
+temporary insert demo here
+
 
 ## Troubleshooting
 - If PyInstaller reports missing MediaPipe models, ensure the files exist under `venv\Lib\site-packages\mediapipe\modules` and re-run the command above with the correct paths.
 - If the build fails because `LookAlive.exe` is in use, close the running instance (check Task Manager) before rebuilding.
-- Reinstall MediaPipe when files disappear from the virtual environment: `pip install --force-reinstall mediapipe`.# LookAlive
+- Reinstall MediaPipe when files disappear from the virtual environment: `pip install --force-reinstall mediapipe`
 
