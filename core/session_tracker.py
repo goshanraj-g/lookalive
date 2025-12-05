@@ -106,17 +106,17 @@ class SessionTracker:
         
         # show session duration
         session_duration = (time.time() - self.session_start) / 60
-        print(f"\n📊 Session Duration: {session_duration:.1f} minutes")
+        print(f"\nSession Duration: {session_duration:.1f} minutes")
         
         # show today's summary
         today_data = self.get_today_heatmap()
         total_today = sum(today_data.values())
-        print(f"📅 Total screen time today: {total_today:.0f} minutes")
+        print(f"Total screen time today: {total_today:.0f} minutes")
         
         # find peak hours
         peak_hours = sorted(today_data.items(), key=lambda x: x[1], reverse=True)[:3]
         if peak_hours and peak_hours[0][1] > 0:
-            print("🔥 Peak usage hours:")
+            print("Peak usage hours:")
             for hour, mins in peak_hours:
                 if mins > 0:
                     print(f"   {int(hour):02d}:00 - {mins:.0f} min")
@@ -125,7 +125,7 @@ class SessionTracker:
         # make ascii heatmap for terminal display
         today_data = self.get_today_heatmap()
         
-        lines = ["\n📊 Today's Screen Time Heatmap:", "=" * 50]
+        lines = ["\nToday's Screen Time Heatmap:", "=" * 50]
         
         # find max for scaling
         max_mins = max(today_data.values()) if today_data.values() else 1

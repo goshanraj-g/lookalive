@@ -62,11 +62,11 @@ class UIOverlay:
         elif too_close:
             status = "TOO CLOSE!"
             status_color = (0, 0, 255)  # Red
-            icon = "⚠️"
+            icon = "[!]"
         elif gaze == "center":
             status = "Looking at Screen"
             status_color = (0, 255, 0)  # Green
-            icon = "👁️"
+            icon = "[i]"
         else:
             status = f"Looking {gaze.title()}"
             status_color = (0, 255, 255)  # Yellow

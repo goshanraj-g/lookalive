@@ -8,12 +8,11 @@ from typing import Tuple, Optional
 class IrisGazeTracker:
     def __init__(self):
         
-        # init mediapipe iris
+        # initialize mediapipe
         self.mp_face_mesh = mp.solutions.face_mesh
         self.mp_iris = mp.solutions.face_mesh
         
-        # face mesh w/ iris landmarks
-        
+        # face mesh with iris landmarks
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
@@ -25,29 +24,31 @@ class IrisGazeTracker:
         self.LEFT_IRIS_CENTER = 468
         self.RIGHT_IRIS_CENTER = 473
         
-        # eye corner landmarks for better gaze calculation
-        self.LEFT_EYE_CORNERS = [33, 133]  # inner, outer corner
+        # eye corner landmarks
+        self.LEFT_EYE_CORNERS = [33, 133]
         self.RIGHT_EYE_CORNERS = [362, 263]
         
         # blink detection landmarks
-        self.LEFT_EYE_TOP_BOTTOM = [159, 145]  # top, bottom
+        self.LEFT_EYE_TOP_BOTTOM = [159, 145]
         self.RIGHT_EYE_TOP_BOTTOM = [386, 374]
         
         # tracking variables
         self.blink_counter = 0
-        self.blink_start_time = time.time()
+        self.blink_start_time = None
         self.last_blink_time = 0
+        self.prev_is_blinking = False
+        self.current_blink_frames = 0
+        self.current_open_frames = 0
         
         # distance detection
-        self.baseline_face_width = None  # will be set after a few frames
+        self.baseline_face_width = None
         self.face_width_samples = []
-        self.TOO_CLOSE_THRESHOLD = 1.3  # 30% larger than baseline means that its  too close
+        self.TOO_CLOSE_THRESHOLD = 1.3
         
     def get_iris_position(self, landmarks, frame_shape) -> Optional[Tuple[float, float, float, float]]:
         """
         get precise iris positions for both eyes
-        returns: (left_iris_x, left_iris_y, right_iris_x, right_iris_y) or None
-        ####### COOL, CHECK IF THERES MORE LANDMARKS
+        returns: (left_iris_x, left_iris_y, right_iris_x, right_iris_y) or none
         """
         if not landmarks:
             return None
@@ -67,7 +68,7 @@ class IrisGazeTracker:
     
     def calculate_gaze_direction(self, landmarks, frame_shape) -> str:
         """
-        cakc  gaze direction using iris tracking
+        calculate gaze direction using iris tracking
         """
         iris_pos = self.get_iris_position(landmarks, frame_shape)
         if not iris_pos:
@@ -82,20 +83,20 @@ class IrisGazeTracker:
         right_inner = landmarks[self.RIGHT_EYE_CORNERS[0]]
         right_outer = landmarks[self.RIGHT_EYE_CORNERS[1]]
         
-        # calc eye widths in pixels
+        # calculate eye widths in pixels
         left_eye_width = abs((left_outer.x - left_inner.x) * w)
         right_eye_width = abs((right_outer.x - right_inner.x) * w)
         
         if left_eye_width > 0 and right_eye_width > 0:
-            # calc relative iris position within each eye (0 = inner, 1 = outer)
+            # calculate relative iris position within each eye
             left_relative = (left_iris_x - left_inner.x * w) / left_eye_width
             right_relative = (right_iris_x - right_inner.x * w) / right_eye_width
             
-            # avg both eyes for final position
+            # average both eyes for final position
             avg_relative = (left_relative + right_relative) / 2
             
             # threshold-based detection
-            threshold = 0.15  # sens threshold
+            threshold = 0.15
             
             if avg_relative < (0.5 - threshold):
                 return "left"
@@ -109,34 +110,68 @@ class IrisGazeTracker:
     def detect_blink(self, landmarks, frame_shape) -> bool:
         """
         detect if user is blinking using eye aspect ratio
+        Uses multiple landmarks for more accurate detection
         """
         if not landmarks:
             return False
             
         h, w = frame_shape[:2]
         
-        # calculate eye aspect ratio for both eyes
-        left_top = landmarks[self.LEFT_EYE_TOP_BOTTOM[0]]
-        left_bottom = landmarks[self.LEFT_EYE_TOP_BOTTOM[1]]
-        right_top = landmarks[self.RIGHT_EYE_TOP_BOTTOM[0]]
-        right_bottom = landmarks[self.RIGHT_EYE_TOP_BOTTOM[1]]
+        # Use more eye landmarks for accurate Eye Aspect Ratio (EAR)
+        # Left eye: top, bottom, inner, outer
+        left_top = landmarks[159]      # top
+        left_bottom = landmarks[145]   # bottom
+        left_inner = landmarks[133]    # inner corner
+        left_outer = landmarks[33]     # outer corner
         
-        # vertical distances
-        left_height = abs((left_top.y - left_bottom.y) * h)
-        right_height = abs((right_top.y - right_bottom.y) * h)
+        # Right eye: top, bottom, inner, outer
+        right_top = landmarks[386]     # top
+        right_bottom = landmarks[374]  # bottom
+        right_inner = landmarks[362]   # inner corner
+        right_outer = landmarks[263]   # outer corner
         
-        # average eye height
-        avg_height = (left_height + right_height) / 2
+        # Calculate distances in pixels
+        left_vertical = abs((left_top.y - left_bottom.y) * h)
+        left_horizontal = abs((left_outer.x - left_inner.x) * w)
         
-        # blink threshold (adjust based on testing)
-        blink_threshold = 8.0  # pixels
+        right_vertical = abs((right_top.y - right_bottom.y) * h)
+        right_horizontal = abs((right_outer.x - right_inner.x) * w)
         
-        is_blinking = avg_height < blink_threshold
+        # Calculate Eye Aspect Ratio (EAR)
+        if left_horizontal > 0 and right_horizontal > 0:
+            left_ear = left_vertical / left_horizontal
+            right_ear = right_vertical / right_horizontal
+            avg_ear = (left_ear + right_ear) / 2
+        else:
+            return False
         
-        if is_blinking and time.time() - self.last_blink_time > 0.3:
-            self.blink_counter += 1
-            self.last_blink_time = time.time()
-            
+        # blink threshold - ear typically drops below 0.2 during blink
+        blink_threshold = 0.15
+        
+        is_blinking = avg_ear < blink_threshold
+
+        now_ts = time.time()
+
+        # track consecutive closed/open eye frames
+        if is_blinking:
+            self.current_blink_frames += 1
+            self.current_open_frames = 0
+        else:
+            self.current_open_frames += 1
+            # eye opened back up; decide if prior closed run was a blink
+            if self.prev_is_blinking:
+                long_enough = self.current_blink_frames >= 3
+                cooldown_ok = (now_ts - self.last_blink_time) > 1.0
+                reopened = self.current_open_frames >= 2
+                if long_enough and cooldown_ok and reopened:
+                    if self.blink_counter == 0:
+                        self.blink_start_time = now_ts
+                    self.blink_counter += 1
+                    self.last_blink_time = now_ts
+            self.current_blink_frames = 0
+
+        # update state for next frame
+        self.prev_is_blinking = is_blinking
         return is_blinking
     
     def get_blink_rate(self) -> float:
@@ -144,7 +179,16 @@ class IrisGazeTracker:
         calculate blinks per minute
         normal rate is 15-20 blinks/minute
         """
-        elapsed_minutes = (time.time() - self.blink_start_time) / 60.0
+        # If no blink counted yet, rate is zero
+        if self.blink_start_time is None:
+            return 0
+
+        elapsed_seconds = time.time() - self.blink_start_time
+        # Avoid inflated rates in the first few seconds; require at least 60s window
+        if elapsed_seconds < 60:
+            return 0
+
+        elapsed_minutes = elapsed_seconds / 60.0
         if elapsed_minutes > 0:
             return self.blink_counter / elapsed_minutes
         return 0

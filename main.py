@@ -3,17 +3,17 @@ LookAlive - 20-20-20 Eye Tracker
 Precise gaze tracking, blink detection, eye health monitoring
 """
 
-from core import BreakManager, notify_start_break, notify_end_break, IrisGazeTracker, UIOverlay, SessionTracker, SystemTray, TRAY_AVAILABLE
+from core import BreakManager, notify_start_break, notify_end_break, notify_too_close, demo_notifications, IrisGazeTracker, UIOverlay, SessionTracker, SystemTray, TRAY_AVAILABLE
 from utils.webcam import get_webcam_capture
 
 import mediapipe as mp
 import cv2
 import time
 
-SCREEN_TIME_LIMIT = 20 * 60  # 20 minutes
+SCREEN_TIME_LIMIT = 60 * 20  # 30 seconds (demo mode)
 BREAK_DURATION = 20  # 20 seconds
 
-# init face mesh
+# initialize face mesh
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(
     max_num_faces=1,
@@ -25,13 +25,13 @@ face_mesh = mp_face_mesh.FaceMesh(
 # camera setup
 cap = get_webcam_capture()
 
-# core components
+# initialize core components
 break_manager = BreakManager(SCREEN_TIME_LIMIT, BREAK_DURATION)
 iris_tracker = IrisGazeTracker()
 ui = UIOverlay()
 session_tracker = SessionTracker()
 
-# System tray setup
+# system tray setup
 running = True
 window_visible = True
 
@@ -47,12 +47,11 @@ def on_tray_show():
 tray = SystemTray(on_show_callback=on_tray_show, on_quit_callback=on_tray_quit)
 if TRAY_AVAILABLE:
     tray.start()
-    print("💡 Press M to minimize to system tray")
+    print("Press M to minimize to system tray")
 
-print("🚀 LookAlive Started")
-print("Controls: Q-Quit | C-Compact | D-Debug | H-Heatmap | P-Reset Position | M-Minimize")
+print("LookAlive Started")
+print("Controls: Q-Quit | C-Compact | D-Debug | H-Heatmap | P-Reset Position | T-Demo Notifications | M-Minimize")
 
-# settings
 show_debug = False
 last_health_warning = 0
 last_too_close_warning = 0
@@ -72,16 +71,16 @@ while running:
     if results.multi_face_landmarks:
         landmarks = results.multi_face_landmarks[0].landmark
         
-        # Get analysis from iris tracker
+        # get analysis from iris tracker
         analysis = iris_tracker.get_gaze_analysis(landmarks, frame.shape)
         gaze = analysis["gaze_direction"]
         too_close = analysis["too_close"]
         blink_rate = analysis["blink_rate"]
         
-        # Update session tracker
+        # update session tracker
         session_tracker.update(gaze == "center")
         
-        # Handle break notifications
+        # handle break notifications
         notify_event, now = break_manager.update_state(gaze)
         
         if notify_event == "start_break":
@@ -89,7 +88,7 @@ while running:
         elif notify_event == "end_break":
             notify_end_break()
         
-        # Calculate timing info
+        # calculate timing info
         if break_manager.break_in_progress:
             time_to_break = 0
             break_remaining = BREAK_DURATION - (now - break_manager.break_start_time)
@@ -103,7 +102,7 @@ while running:
         
         screen_time_mins = int((now - (break_manager.start_screen_watch_time or now)) / 60)
         
-        # Draw clean UI overlay
+        # draw ui overlay
         frame = ui.draw_status_bar(
             frame, 
             gaze=gaze,
@@ -115,17 +114,18 @@ while running:
             screen_time_mins=screen_time_mins
         )
         
-        # Too close warning
+        # too close warning
         if too_close and now - last_too_close_warning > 5:
             frame = ui.draw_warning(frame, "Move back from screen!", "danger")
+            notify_too_close()
             last_too_close_warning = now
         
-        # Low blink rate warning
+        # low blink rate warning
         if blink_rate > 3 and blink_rate < 10 and now - last_health_warning > 30:
             frame = ui.draw_warning(frame, "Remember to blink!", "warning")
             last_health_warning = now
         
-        # Debug overlay (iris dots)
+        # debug overlay
         if show_debug:
             if analysis['iris_positions']:
                 left_x, left_y, right_x, right_y = analysis['iris_positions']
@@ -133,57 +133,60 @@ while running:
                 cv2.circle(frame, (int(right_x), int(right_y)), 3, (0, 255, 0), -1)
     
     else:
-        # No face detected
+        # no face detected
         break_manager.reset()
         h, w = frame.shape[:2]
         ui.draw_rounded_rect(frame, w//2 - 150, h//2 - 30, 300, 60, (0, 0, 150), 0.8)
         cv2.putText(frame, "No Face Detected", (w//2 - 100, h//2 + 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     
-    # Display frame (only if window visible)
     if window_visible:
         cv2.imshow("LookAlive", frame)
     
-    # Update tray status
+    # update tray status
     if TRAY_AVAILABLE and tray.icon:
         if break_manager.break_in_progress:
             tray.update_status("Break Time", "orange")
-        elif too_close if results.multi_face_landmarks else False:
+        elif results.multi_face_landmarks and too_close:
             tray.update_status("Too Close!", "red")
         else:
             tray.update_status("Running", "green")
     
-    # Handle keyboard input
+    # handle keyboard input
     key = cv2.waitKey(1) & 0xFF
     if key == ord("q"):
         running = False
     elif key == ord("c"):
         mode = ui.toggle_compact()
-        print(f"{'📱 Compact' if mode else '🖥️ Full'} mode")
+        print(f"{'Compact' if mode else 'Full'} mode")
     elif key == ord("d"):
         show_debug = not show_debug
         print(f"Debug: {'ON' if show_debug else 'OFF'}")
     elif key == ord("r"):
         iris_tracker.reset_blink_counter()
-        print("🔄 Blink counter reset")
+        print("Blink counter reset")
     elif key == ord("h"):
         print(session_tracker.generate_heatmap_ascii())
     elif key == ord("p"):
         iris_tracker.reset_distance_calibration()
-        print("📏 Distance calibration reset - sit at normal position")
+        print("Distance calibration reset - sit at normal position")
+    elif key == ord("t"):
+        print("\nPausing tracking for demo...")
+        demo_notifications()
+        print("Demo complete - resuming tracking\n")
     elif key == ord("m") and TRAY_AVAILABLE:
         window_visible = False
         cv2.destroyAllWindows()
         tray.minimize()
-        print("📥 Minimized to system tray")
+        print("Minimized to system tray")
 
-# Cleanup
+# cleanup
 tray.stop()
 cap.release()
 cv2.destroyAllWindows()
 
-# End session and show summary
+# end session and show summary
 session_tracker.end_session()
-print(f"\n👁️ Total blinks: {iris_tracker.blink_counter}")
-print(f"📈 Average blink rate: {iris_tracker.get_blink_rate():.1f}/min")
-print("👋 Thanks for taking care of your eyes!")
+print(f"\nTotal blinks: {iris_tracker.blink_counter}")
+print(f"Average blink rate: {iris_tracker.get_blink_rate():.1f}/min")
+print("Thanks for taking care of your eyes!")
