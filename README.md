@@ -2,6 +2,12 @@
 
 LookAlive monitors your gaze through a webcam feed so you can manage screen time without having to watch a clock. It issues distance warnings when your face gets too close, keeps a compact overlay for quick diagnostics, creates session heatmaps, and minimizes to the tray with notifications
 
+## Demo
+<p align="center">
+  <img src="media/look_alive_app_demo.mp4" alt="LookAlive Application Demo" width="600"/>
+</p>
+
+
 ## Features
 - real-time iris and gaze tracking using MediaPipe Face Mesh
 - distance alerts when the face is too close to the camera
@@ -38,8 +44,8 @@ Run `dist\LookAlive.exe` after the build to verify functionality.
 ## Installer / Distribution
 PyInstaller writes the packaged binary and supporting files into `dist`. Ship the entire `dist` contents or point your installer (see `installer.iss`) to that folder. Running `dist\LookAlive.exe` installs or launches LookAlive depending on your deployment flow.
 
-## Demo (placeholder)
-temporary insert demo here
+## Demo 
+
 
 
 ## Troubleshooting
