@@ -3,9 +3,10 @@
 LookAlive monitors your gaze through a webcam feed so you can manage screen time without having to watch a clock. It issues distance warnings when your face gets too close, keeps a compact overlay for quick diagnostics, creates session heatmaps, and minimizes to the tray with notifications
 
 ## Demo
-<p align="center">
-  <img src="media/look_alive_app_demo.mp4" alt="LookAlive Application Demo" width="600"/>
-</p>
+https://github.com/user-attachments/assets/5055c858-d075-4655-a97d-9c2cf66d1a06
+
+
+
 
 
 ## Features
