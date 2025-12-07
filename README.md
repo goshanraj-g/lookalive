@@ -45,9 +45,6 @@ Run `dist\LookAlive.exe` after the build to verify functionality.
 ## Installer / Distribution
 PyInstaller writes the packaged binary and supporting files into `dist`. Ship the entire `dist` contents or point your installer (see `installer.iss`) to that folder. Running `dist\LookAlive.exe` installs or launches LookAlive depending on your deployment flow.
 
-## Demo 
-
-
 
 ## Troubleshooting
 - If PyInstaller reports missing MediaPipe models, ensure the files exist under `venv\Lib\site-packages\mediapipe\modules` and re-run the command above with the correct paths.
